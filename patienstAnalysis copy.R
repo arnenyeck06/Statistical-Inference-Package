@@ -216,7 +216,7 @@ corrplot::corrplot(cor_matrix, method = "color", type = "upper",
                    addCoef.col = "black",
                    col = cols)
 
-## CLEANING
+## CLEANING Random Forest.
 
 # Check for factor 
 str(patients) 
