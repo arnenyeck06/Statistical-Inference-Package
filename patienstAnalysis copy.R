@@ -457,17 +457,24 @@ rows_to_remove <- c(8, 11, 12, 13, 21, 25, 27, 36, 40, 49, 61, 84, 106, 114, 119
                     615, 621, 629, 631, 655, 668, 670, 685, 708, 710, 714)
 
 # Create new cleaned dataset by removing those rows
-df_clean_2 <- df_clean[-rows_to_remove, ]
+#df_clean_2 <- df_clean[-rows_to_remove, ]
 
 print(df_clean[c(419, 545, 16,  58, 118, 562, 564), ])
 #row 419 looks normal comparing to bmi- keep
 
 # Remove rows 545, 16, 58, 118, 562, 564
-rows_to_remove <- c(545, 16, 58, 118, 562, 564)
+#rows_to_remove <- c(545, 16, 58, 118, 562, 564)
 
 # Create new dataframe without these rows
-df_clean_2 <- df_clean_2[-rows_to_remove, ]
+#df_clean_2 <- df_clean_2[-rows_to_remove, ]
 
+#Concise removal of non-realistic values
+df_clean_2 <- df_clean %>%
+  filter(BloodPressure >= 40) %>%
+  filter(SkinThickness >= 5 & SkinThickness <= 60) %>%
+  filter(Glucose >= 50) %>%
+  filter(Age >= 11 & Age <= 50)
+          
 #Check
 summary(df_clean_2)
 str(df_clean_2)
@@ -480,4 +487,62 @@ str(df_clean_2)
 
 install.packages("mice")
 library(mice)
+
+
+## Imputation
+
+#Create two different sets of data: One with Insulin and SkinThickness imputed with RF, and the other imputed with MICE.
+
+#Mice Imputation
+install.packages("mice")
+library(mice)
+imputed_data <- mice(data_to_be_imputed, method = "pmm", m = 5, seed = 123)
+imputed_df <- complete(imputed_data)  # gets the first completed dataset
+
+# Check NAs
+colSums(is.na(imputed_df))
+summary(imputed_df)
+head(imputed_df)
+
+# Final imputed dataset
+rf_dataset_imputed <- imputed_df
+
+write.csv(rf_dataset_imputed, "completed_data_mice.csv", row.names = FALSE)
+
+
+# RF Imputation
+install.packages("missForest")
+library(missForest)
+
+set.seed(123)  # For reproducibility
+
+# Save outcome variable (Diagnosis) separately
+outcome_var <- data_to_be_imputed$Diagnosis
+
+# Remove outcome before imputation
+df_features_only <- data_to_be_imputed[, !(names(data_to_be_imputed) %in% "Diagnosis")]
+
+# Check Insulin and SkinThickness presence before imputation
+stopifnot("Insulin" %in% colnames(df_features_only))
+stopifnot("SkinThickness" %in% colnames(df_features_only))
+
+# Perform RF imputation on features only
+rf_imputed <- missForest(df_features_only, maxiter = 10, ntree = 100)
+
+# Extract completed data
+rf_dataset_imputed <- rf_imputed$ximp
+
+# Add outcome variable back
+rf_dataset_imputed$Diagnosis <- outcome_var
+
+# Check imputation results
+colSums(is.na(rf_dataset_imputed))
+summary(rf_dataset_imputed)
+head(rf_dataset_imputed)
+
+write.csv(rf_dataset_imputed, "completed_data_rf.csv", row.names = FALSE)
+
+#Take original datasets sent on 6/2 for continuity
+
+
 
