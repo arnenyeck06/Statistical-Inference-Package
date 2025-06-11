@@ -488,11 +488,6 @@ str(df_clean_2)
 install.packages("mice")
 library(mice)
 
-
-## Imputation
-
-#Create two different sets of data: One with Insulin and SkinThickness imputed with RF, and the other imputed with MICE.
-
 #Mice Imputation
 install.packages("mice")
 library(mice)
@@ -542,7 +537,133 @@ head(rf_dataset_imputed)
 
 write.csv(rf_dataset_imputed, "completed_data_rf.csv", row.names = FALSE)
 
-#Take original datasets sent on 6/2 for continuity
+# Use the uploaded datasets below
 
+mice_data <- read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/main/completed_data_mice.csv")
+rf_data <- read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/main/completed_data_rf.csv")
 
+          
+# Feature Selection
+library(glmnet)
 
+# Load and prepare data
+data <- rf_data
+data$log_Insulin <- log(data$Insulin + 1)
+data$log_Pedigree <- log(data$Pedigree + 1)
+
+# Define predictors and response
+feature_cols <- c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness",
+                  "BMI", "Age", "log_Pedigree", "log_Insulin")
+X <- as.matrix(data[, feature_cols])
+y <- data$Diagnosis
+
+# LASSO for logistic regression
+set.seed(123)
+cv_lasso <- cv.glmnet(X, y, alpha = 1, family = "binomial")
+
+# Coefficients at best lambda
+best_lambda <- cv_lasso$lambda.min
+coefs <- coef(cv_lasso, s = best_lambda)
+
+# Extract selected features
+selected_features <- rownames(coefs)[coefs[, 1] != 0]
+selected_features <- selected_features[selected_features != "(Intercept)"]
+
+print("Selected features with LASSO:")
+print(selected_features)
+
+#Best feature subset for Logistic regression model: "Pregnancies", "Glucose", "BloodPressure", "BMI", "Age", "log_Pedigree", "log_Insulin" 
+
+#RFE for SVM
+
+library(caret)
+set.seed(123)
+
+data1 <- read.csv("C:/Users/katie/Documents/completed_data_rf.csv")
+data2 <- read.csv("C:/Users/katie/Documents/completed_data_mice.csv")
+
+# Log-transform Insulin and Pedigree in data1
+data1 <- data1 %>%
+  mutate(
+    log_Insulin = log(Insulin + 1),        # Add 1 to avoid log(0)
+    log_Pedigree = log(Pedigree + 1)
+  )
+
+# Log-transform Insulin and Pedigree in data2
+data2 <- data2 %>%
+  mutate(
+    log_Insulin = log(Insulin + 1),
+    log_Pedigree = log(Pedigree + 1)
+  )
+#Check
+colnames(data2)
+colnames(data1)
+#Predictors for each dataset
+x_rf <- data1[, c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness",
+                 "BMI", "Age", "log_Pedigree", "log_Insulin")]
+y_rf <- factor(data1$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+
+x_mice <- data2[, c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness",
+                    "BMI", "Age", "log_Pedigree", "log_Insulin")]
+y_mice <- factor(data2$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+
+#CV
+train_ctrl <- trainControl(
+  method = "cv",
+  number = 3,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  sampling = "smote"
+)
+
+rfe_ctrl <- rfeControl(functions = caretFuncs, method = "cv", number = 3)
+
+rfe_svm_rf <- rfe(
+  x = x_rf, y = y_rf,
+  sizes = 1:8,
+  rfeControl = rfe_ctrl,
+  method = "svmRadial",
+  metric = "ROC",
+  trControl = train_ctrl
+)
+
+rfe_svm_mice <- rfe(
+  x = x_mice, y = y_mice,
+  sizes = 1:8,
+  rfeControl = rfe_ctrl,
+  method = "svmRadial",
+  metric = "ROC",
+  trControl = train_ctrl
+)
+
+# Create data frames of results for plotting
+get_perf_df <- function(rfe_obj, model_name) {
+  data.frame(
+    Variables = rfe_obj$results$Variables,
+    Accuracy = rfe_obj$results$Accuracy,
+    Model = model_name
+  )
+}
+
+results_combined <- rbind(
+  get_perf_df(rfe_svm_rf, "SVM (RF Imputed)"),
+  get_perf_df(rfe_svm_mice, "SVM (MICE Imputed)")
+)
+
+# Plot accuracy vs. number of features
+ggplot(results_combined, aes(x = Variables, y = Accuracy, color = Model)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(title = "RFE Accuracy Comparison",
+       x = "Number of Selected Features",
+       y = "ROC") +
+  scale_color_brewer(palette = "Set1")
+
+plot(rfe_svm_rf, type = c("g", "o"))
+plot(rfe_svm_mice, type = c("g", "o"))
+rfe_svm_rf$optVariables
+rfe_svm_mice$optVariables
+
+# Highest performing is Random Forest imputed data with 6-feature subset: 
+# "Glucose", "log_Insulin", "Age", "BMI", "SkinThickness", "Pregnancies"
