@@ -318,8 +318,8 @@ colSums(datap == 0, na.rm = TRUE)
 #111 rows where pregnancies == 0
 #500 rows where Diagnosis == 0
 
-# Find rows where this count is 3 or more
-(rows_4_or_more <- sum(zero_or_na_per_row >= 3))
+# Find rows where this count is 4 or more
+(rows_4_or_more <- sum(zero_or_na_per_row >= 4))
 #44 rows missing data from 4 or more columns
 
 #Vizualize missingness together
