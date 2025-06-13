@@ -1,0 +1,266 @@
+---
+output:
+  word_document: default
+
+---
+###Model Selection SVM
+```{r setup, message=FALSE, warning=FALSE}
+library(caret)
+library(dplyr)
+library(purrr)
+library(pROC)
+library(yardstick) 
+
+#Read files
+data <- read.csv("C:/Users/ERC/Desktop/completed_data_rf 1.csv")
+
+#Log transform
+data <- data %>%
+     mutate(
+         log_Insulin = log(Insulin + 1),        
+         log_Pedigree = log(Pedigree + 1)
+     )
+
+feature_cols <- c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness", 
+                  "log_Insulin", "BMI", "log_Pedigree", "Age")
+
+##Count outliers per feature
+count_outliers <- function(x) {
+     Q1 <- quantile(x, 0.25, na.rm = TRUE)
+     Q3 <- quantile(x, 0.75, na.rm = TRUE)
+     IQR_val <- Q3 - Q1
+     sum(x < (Q1 - 1.5 * IQR_val) | x > (Q3 + 1.5 * IQR_val), na.rm = TRUE)
+ }
+sapply(data[feature_cols], count_outliers)
+
+#Cap outliers
+cap_outliers <- function(x) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR_val <- Q3 - Q1
+  lower <- Q1 - 1.5 * IQR_val
+  upper <- Q3 + 1.5 * IQR_val
+  x[x < lower] <- lower
+  x[x > upper] <- upper
+  return(x)
+}
+
+# Apply to all relevant columns (after log transform, before scaling)
+data[feature_cols] <- lapply(data[feature_cols], cap_outliers)
+
+##Class imbalance
+table(data$Diagnosis)
+
+##Assumptions of SVM
+pca_result <- prcomp(data[feature_cols], center = TRUE, scale. = TRUE)
+pca_data <- data.frame(pca_result$x[, 1:2])
+pca_data$Diagnosis <- as.factor(data$Diagnosis)
+
+#Plot the linear boundary
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Diagnosis)) +
+     geom_point(alpha = 0.7) +
+     scale_color_manual(values = c("0" = "black", "1" = "red")) +
+     theme_light() +
+     labs(title = "PCA Plot: Linear Separability Check",
+          x = "Principal Component 1",
+          y = "Principal Component 2",
+          color = "Diagnosis")
+
+#Standardize features
+feature_cols <- c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness", 
+                  "log_Insulin", "BMI", "log_Pedigree", "Age")
+data[feature_cols] <- scale(data[feature_cols])
+
+##Ready for model
+x <- as.matrix(data[, feature_cols])
+y <- data$Diagnosis
+
+data1=data
+
+##Split data and prepare for modeling
+# Set seed for reproducibility
+set.seed(123)
+
+# Stratified split: 70% train, 30% test
+train_index <- createDataPartition(data1$Diagnosis, p = 0.7, list = FALSE)
+
+# Create training and testing datasets
+train_data <- data1[train_index, ]
+test_data <- data1[-train_index, ]
+
+# Check class proportions in both
+prop.table(table(train_data$Diagnosis))
+prop.table(table(test_data$Diagnosis))
+
+##Cross validation and Tuning
+train_svm <- train_data
+test_svm <- test_data
+train_svm$Diagnosis <- factor(train_svm$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+test_svm$Diagnosis <- factor(test_svm$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+
+#Set up cross validation
+ctrl <- trainControl(
+  method = "cv",
+  number = 10,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = TRUE,
+  sampling = "smote"  
+)
+
+#Train model
+svm_model_default <- train(
+     Diagnosis ~ ., 
+     data = train_svm,
+     method = "svmRadial",
+     trControl = ctrl,
+     metric = "ROC"
+     
+ )
+
+#Default model
+print(svm_model_default)
+
+##Cross validation scores
+preds <- svm_model_default$pred
+fold_list <- split(preds, preds$Resample)
+fold_metrics <- map_dfr(fold_list, function(fold) {
+     data.frame(
+         Resample = unique(fold$Resample),
+         ROC = as.numeric(roc(fold$obs, fold$Yes, quiet = TRUE)$auc)
+         )
+ })
+
+print(fold_metrics)
+
+##Evaluation on test set
+cat("\nAveraged over 10 folds:\n")
+#Averaged over 10 folds:
+fold_metrics %>%
+     summarise(
+         Mean_ROC  = mean(ROC)
+     ) %>%
+     print()
+
+#Confusion Matrix
+test_pred_class <- predict(svm_model_default, newdata = test_svm)
+test_pred_prob <- predict(svm_model_default, newdata = test_svm, type = "prob")[, "Yes"]
+conf_mat <- confusionMatrix(test_pred_class, test_svm$Diagnosis, positive = "Yes")
+print(conf_mat)
+
+TP <- conf_mat$table[2, 2]
+FP <- conf_mat$table[1, 2]
+FN <- conf_mat$table[2, 1]
+
+# Manually compute additional metrics
+precision <- if ((TP + FP) == 0) NA else TP / (TP + FP)
+recall    <- if ((TP + FN) == 0) NA else TP / (TP + FN)
+f1        <- if (is.na(precision) | is.na(recall) | (precision + recall == 0)) NA else 2 * (precision * recall) / (precision + recall)
+f2        <- if (is.na(precision) | is.na(recall) | ((4 * precision) + recall == 0)) NA else (5 * precision * recall) / ((4 * precision) + recall)
+
+# Compute ROC
+roc_val   <- tryCatch({
+  pROC::roc(test_svm$Diagnosis, test_pred_prob, quiet = TRUE)$auc
+}, error = function(e) NA)
+
+# Print results
+cat("\nAdditional Evaluation Metrics on Test Set:\n")
+cat("Precision: ", round(precision, 4), "\n")
+cat("F1 Score : ", round(f1, 4), "\n")
+cat("F2 Score : ", round(f2, 4), "\n")
+cat("ROC AUC  : ", round(roc_val, 4), "\n")
+
+#####Hyperparameterize
+svm_grid <- expand.grid(
+  sigma = c(0.05, 0.08, 0.1),   
+  C = c(0.25, 0.5, 1, 2)        
+)
+ctrl <- trainControl(
+  method = "cv",
+  number = 10,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = TRUE,
+  sampling = "smote"  
+)
+
+svm_model_tuned <- train(
+  Diagnosis ~ ., 
+  data = train_svm,
+  method = "svmRadial",
+  metric = "ROC",
+  tuneGrid = svm_grid,
+  trControl = ctrl
+)
+
+##Print the tuned hyperparameters
+print(svm_model_tuned$bestTune)
+
+#Print crossvalidation scores
+preds_tuned <- svm_model_tuned$pred
+best_params <- svm_model_tuned$bestTune
+preds_best <- preds_tuned %>% filter(sigma == best_params$sigma, C == best_params$C)
+fold_list_tuned <- split(preds_best, preds_best$Resample)
+fold_metrics_tuned <- map_dfr(fold_list_tuned, function(fold) {
+     data.frame(
+         Resample = unique(fold$Resample),
+         ROC  = as.numeric(pROC::roc(fold$obs, fold$Yes, quiet = TRUE)$auc)
+     )
+ })
+
+print(fold_metrics_tuned)
+
+test_pred_class_tuned <- predict(svm_model_tuned, newdata = test_svm)
+test_pred_prob_tuned  <- predict(svm_model_tuned, newdata = test_svm, type = "prob")[, "Yes"]
+conf_mat_tuned <- confusionMatrix(test_pred_class_tuned, test_svm$Diagnosis, positive = "Yes")
+print(conf_mat_tuned)
+
+TP <- conf_mat_tuned$table[2, 2]
+FP <- conf_mat_tuned$table[1, 2]
+FN <- conf_mat_tuned$table[2, 1]
+
+# Manually compute additional metrics
+precision <- if ((TP + FP) == 0) NA else TP / (TP + FP)
+recall    <- if ((TP + FN) == 0) NA else TP / (TP + FN)
+f1        <- if (is.na(precision) | is.na(recall) | (precision + recall == 0)) NA else 2 * (precision * recall) / (precision + recall)
+f2        <- if (is.na(precision) | is.na(recall) | ((4 * precision) + recall == 0)) NA else (5 * precision * recall) / ((4 * precision) + recall)
+
+# Compute ROC
+roc_val   <- tryCatch({
+  pROC::roc(test_svm$Diagnosis, test_pred_prob_tuned, quiet = TRUE)$auc
+}, error = function(e) NA)
+
+# Print results
+cat("\nAdditional Evaluation Metrics on Test Set:\n")
+cat("Precision: ", round(precision, 4), "\n")
+cat("F1 Score : ", round(f1, 4), "\n")
+cat("F2 Score : ", round(f2, 4), "\n")
+cat("ROC AUC  : ", round(roc_val, 4), "\n")
+
+#Thresholding to increase sensitivity
+threshold <- 0.45
+preds_class_thresh <- ifelse(test_pred_prob_tuned >= threshold, "Yes", "No")
+preds_class_thresh <- factor(preds_class_thresh, levels = c("No", "Yes"))
+
+# Confusion matrix with custom threshold
+conf_mat_thresh <- confusionMatrix(preds_class_thresh, test_svm$Diagnosis, positive = "Yes")
+print(conf_mat_thresh)
+
+# Manually compute metrics
+TP <- conf_mat_thresh$table[2, 2]
+FP <- conf_mat_thresh$table[1, 2]
+FN <- conf_mat_thresh$table[2, 1]
+
+precision <- if ((TP + FP) == 0) NA else TP / (TP + FP)
+recall    <- if ((TP + FN) == 0) NA else TP / (TP + FN)
+f1        <- if (is.na(precision) | is.na(recall) | (precision + recall == 0)) NA else 2 * (precision * recall) / (precision + recall)
+f2        <- if (is.na(precision) | is.na(recall) | ((4 * precision) + recall == 0)) NA else (5 * precision * recall) / ((4 * precision) + recall)
+
+# Print final threshold-based metrics
+cat("\nEvaluation at Threshold = 0.45\n")
+cat("Precision: ", round(precision, 4), "\n")
+cat("Recall   : ", round(recall, 4), "\n")
+cat("F1 Score : ", round(f1, 4), "\n")
+cat("F2 Score : ", round(f2, 4), "\n")
+cat("ROC AUC  : ", round(roc_val, 4), "\n") 
+```
