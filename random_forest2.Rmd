@@ -1,0 +1,285 @@
+
+# Random Forest Model for Gestational Diabetes Prediction
+
+```{r}
+library(caret)
+library(dplyr)
+library(purrr)
+library(pROC)
+library(randomForest)
+library(yardstick)
+
+# Read the data
+#data <- read.csv("completed_data_rf 1.csv")
+
+data <- read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/main/completed_data_rf.csv")
+
+# Feature columns
+feature_cols <- c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness", 
+                  "Insulin", "BMI", "Pedigree", "Age")
+
+# Count outliers per feature
+count_outliers <- function(x) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR_val <- Q3 - Q1
+  sum(x < (Q1 - 1.5 * IQR_val) | x > (Q3 + 1.5 * IQR_val), na.rm = TRUE)
+}
+
+cat("Outliers per feature before capping:\n")
+sapply(data[feature_cols], count_outliers)
+
+# Cap outliers using IQR method
+cap_outliers <- function(x) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR_val <- Q3 - Q1
+  lower <- Q1 - 1.5 * IQR_val
+  upper <- Q3 + 1.5 * IQR_val
+  x[x < lower] <- lower
+  x[x > upper] <- upper
+  return(x)
+}
+
+# Apply outlier capping
+data[feature_cols] <- lapply(data[feature_cols], cap_outliers)
+
+# Check class distribution
+cat("\nClass distribution:\n")
+table(data$Diagnosis)
+```
+
+## Data Preparation for Model Training
+
+```{r}
+# Prepare data for modeling
+data_model <- data
+set.seed(123)
+
+# Stratified train-test split (70-30)
+train_index <- createDataPartition(data_model$Diagnosis, p = 0.7, list = FALSE)
+train_data <- data_model[train_index, ]
+test_data <- data_model[-train_index, ]
+
+# Convert target to factor with meaningful labels
+train_data$Diagnosis <- factor(train_data$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+test_data$Diagnosis <- factor(test_data$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+
+# Check class proportions
+cat("Training set proportions:\n")
+prop.table(table(train_data$Diagnosis))
+cat("\nTest set proportions:\n")
+prop.table(table(test_data$Diagnosis))
+
+```
+
+## Cross-Validation Setup
+
+```{r cv_setup}
+# Set up 10-fold cross-validation with SMOTE for class imbalance
+ctrl <- trainControl(
+  method = "cv",
+  number = 10,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  savePredictions = TRUE,
+  sampling = "smote"  # Handle class imbalance
+)
+```
+
+## Default Random Forest Model
+
+```{r}
+# Train default Random Forest model
+suppressMessages(
+  suppressWarnings({
+    rf_model_default <- train(
+      Diagnosis ~ ., 
+      data = train_data,
+      method = "rf",
+      trControl = ctrl,
+      metric = "ROC",
+      ntree = 500,
+      importance = TRUE  # Calculate feature importance
+    )
+  })
+)
+
+print(rf_model_default)
+
+# Cross-validation performance by fold
+preds <- rf_model_default$pred
+fold_list <- split(preds, preds$Resample)
+fold_metrics <- map_dfr(fold_list, function(fold) {
+  # Create confusion matrix for each fold
+  conf_fold <- confusionMatrix(fold$pred, fold$obs, positive = "Yes")
+  
+  data.frame(
+    Resample = unique(fold$Resample),
+    ROC = as.numeric(roc(fold$obs, fold$Yes, quiet = TRUE)$auc),
+    Sens = conf_fold$byClass["Sensitivity"],
+    Spec = conf_fold$byClass["Specificity"]
+  )
+})
+
+cat("\nCross-validation performance by fold:\n")
+print(fold_metrics)
+
+cat("\nMean cross-validation performance:\n")
+fold_metrics %>%
+  summarise(
+    Mean_ROC = mean(ROC),
+    Mean_Sens = mean(Sens),
+    Mean_Spec = mean(Spec)
+  ) %>%
+  print()
+```
+
+## Hyperparameter Tuning
+
+```{r}
+# Define tuning grid for Random Forest
+rf_grid <- expand.grid(
+  mtry = c(2, 3, 4, 5, 6)  # Number of variables randomly sampled as candidates at each split
+)
+
+# Train tuned Random Forest model
+set.seed(123)
+suppressMessages(
+  suppressWarnings({
+    rf_model_tuned <- train(
+      Diagnosis ~ ., 
+      data = train_data,
+      method = "rf",
+      metric = "ROC",
+      tuneGrid = rf_grid,
+      trControl = ctrl,
+      ntree = 500,
+      importance = TRUE
+    )
+  })
+)
+
+cat("Best hyperparameters:\n")
+print(rf_model_tuned$bestTune)
+
+# Cross-validation performance for tuned model
+preds_tuned <- rf_model_tuned$pred
+best_params <- rf_model_tuned$bestTune
+preds_best <- preds_tuned %>% filter(mtry == best_params$mtry)
+fold_list_tuned <- split(preds_best, preds_best$Resample)
+fold_metrics_tuned <- map_dfr(fold_list_tuned, function(fold) {
+  # Create confusion matrix for each fold
+  conf_fold <- confusionMatrix(fold$pred, fold$obs, positive = "Yes")
+  
+  data.frame(
+    Resample = unique(fold$Resample),
+    ROC = as.numeric(pROC::roc(fold$obs, fold$Yes, quiet = TRUE)$auc),
+    Sens = conf_fold$byClass["Sensitivity"],
+    Spec = conf_fold$byClass["Specificity"]
+  )
+})
+
+cat("\nTuned model cross-validation performance:\n")
+print(fold_metrics_tuned)
+```
+
+## Model Evaluation on Test Set
+
+```{r}
+# Use the tuned model for final evaluation
+final_model <- rf_model_tuned
+
+# Predictions on test set
+test_pred_class <- predict(final_model, newdata = test_data)
+test_pred_prob <- predict(final_model, newdata = test_data, type = "prob")[, "Yes"]
+
+# Confusion matrix
+conf_mat <- confusionMatrix(test_pred_class, test_data$Diagnosis, positive = "Yes")
+print(conf_mat)
+
+# Calculate additional metrics
+TP <- conf_mat$table[2, 2]
+FP <- conf_mat$table[1, 2]
+FN <- conf_mat$table[2, 1]
+
+precision <- if ((TP + FP) == 0) NA else TP / (TP + FP)
+recall <- if ((TP + FN) == 0) NA else TP / (TP + FN)
+f1 <- if (is.na(precision) | is.na(recall) | (precision + recall == 0)) NA else 2 * (precision * recall) / (precision + recall)
+f2 <- if (is.na(precision) | is.na(recall) | ((4 * precision) + recall == 0)) NA else (5 * precision * recall) / ((4 * precision) + recall)
+
+# ROC curve
+roc_val <- tryCatch({
+  pROC::roc(test_data$Diagnosis, test_pred_prob, quiet = TRUE)$auc
+}, error = function(e) NA)
+
+cat("\nAdditional Test Set Metrics:\n")
+cat("Precision: ", round(precision, 4), "\n")
+cat("F1 Score : ", round(f1, 4), "\n")
+cat("F2 Score : ", round(f2, 4), "\n")
+cat("ROC AUC  : ", round(roc_val, 4), "\n")
+```
+
+## Feature Importance Analysis
+
+```{r feature_importance}
+# Extract feature importance from the final model
+importance_scores <- varImp(final_model, scale = FALSE)
+print(importance_scores)
+
+# Get the actual Random Forest object for detailed importance
+rf_final <- final_model$finalModel
+
+# Extract both types of importance measures
+importance_matrix <- importance(rf_final)
+cat("\nDetailed Feature Importance:\n")
+print(round(importance_matrix, 4))
+
+# Mean Decrease in Accuracy (more interpretable)
+mda_importance <- importance_matrix[, "MeanDecreaseAccuracy"]
+mda_sorted <- sort(mda_importance, decreasing = TRUE)
+
+cat("\nFeature Ranking by Mean Decrease in Accuracy:\n")
+for(i in 1:length(mda_sorted)) {
+  cat(i, ". ", names(mda_sorted)[i], ": ", round(mda_sorted[i], 4), "\n")
+}
+
+```
+
+
+## Model Performance Summary
+
+```{r}
+cat("\n=== RANDOM FOREST MODEL SUMMARY ===\n")
+
+cat("\nCross-Validation Performance (Tuned Model):\n")
+cat("Mean ROC AUC: ", round(mean(fold_metrics_tuned$ROC), 4), "\n")
+cat("Mean Sensitivity: ", round(mean(fold_metrics_tuned$Sens), 4), "\n")
+cat("Mean Specificity: ", round(mean(fold_metrics_tuned$Spec), 4), "\n")
+
+cat("\nTest Set Performance:\n")
+cat("ROC AUC: ", round(roc_val, 4), "\n")
+cat("Accuracy: ", round(conf_mat$overall["Accuracy"], 4), "\n")
+cat("Sensitivity: ", round(conf_mat$byClass["Sensitivity"], 4), "\n")
+cat("Specificity: ", round(conf_mat$byClass["Specificity"], 4), "\n")
+cat("Precision: ", round(precision, 4), "\n")
+cat("F1 Score: ", round(f1, 4), "\n")
+
+cat("\nModel Parameters:\n")
+cat("Optimal mtry: ", final_model$bestTune$mtry, "\n")
+cat("Number of trees: ", rf_final$ntree, "\n")
+
+cat("\nTop 3 Most Important Features:\n")
+top_features <- names(head(mda_sorted, 3))
+for(i in 1:3) {
+  cat(i, ". ", top_features[i], ": ", round(mda_sorted[top_features[i]], 4), "\n")
+}
+
+cat("\n=== MODEL COMPARISON NOTES ===\n")
+cat("Random Forest advantages:\n")
+cat("- Handles non-linear relationships automatically\n")
+cat("- Built-in feature importance measures\n")
+cat("- Less prone to overfitting\n")
+cat("- No need for feature scaling\n")
+cat("- Handles missing values well\n")
+```
