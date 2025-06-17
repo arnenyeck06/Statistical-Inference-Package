@@ -1,0 +1,835 @@
+---
+title: "GDM Prediction: Data Exploration and Pre-processing"
+author: "Arne Nyeck Nyeck & Katie Schuman"
+date: "2025-06-10"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Document Summary
+### 1. Data Exploration
+### 2. Data Cleaning
+### 3. Data Pre-processing
+### 4. Feature Selection
+
+
+# Data Exploration
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(reshape2)
+library(RColorBrewer)
+install.packages(c("ggplot2", "reshape2"))
+```
+
+### Read Data File
+```{r}
+patients <- read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/refs/heads/main/patients.csv")
+```
+
+### Examining data structure
+```{r}
+head(patients)
+summary(patients)
+colnames(patients)
+str(patients)
+```
+
+### Check missing values 
+```{r}
+colSums(is.na(patients))
+```
+### Examining positively diagnosed records
+```{r}
+Positive <- subset(patients, Diagnosis == 1)
+head(Positive, 5)
+```
+
+### Visualizing Diagnosis
+```{r}
+ggplot(patients, aes(x = factor(Diagnosis))) +
+  geom_bar(fill = "skyblue", color = "black") +
+  labs(
+    title = "Count of Gestational Diabetes Diagnoses",
+    x = "Diagnosis (0 = No, 1 = Yes)",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+
+
+### Checking for skewness
+
+### Blood Pressure
+```{r}
+ggplot(patients, aes(x = BloodPressure, fill = ..count..)) +
+  geom_histogram(binwidth = 10, color = "black") +
+  scale_fill_viridis_c() +
+  labs(title = "Histogram of Blood Pressure",
+       x = "Blood Pressure",
+       y = "Count") +
+  theme_minimal()
+```
+
+We can say that blood pressure is skewed left by looking at the graph.
+
+### Skin Thickness
+```{r}
+ggplot(patients, aes(x = SkinThickness, fill = ..count..)) +
+  geom_histogram(binwidth = 10, color = "black") +
+  scale_fill_viridis_c() +
+  labs(title = "Skin Thickness Histogram",
+       x = "Skin Thickness",
+       y = "Count") +
+  theme_minimal()
+```
+
+We can say that skin thickness is skewed left by looking at the graph.
+
+### Insulin
+```{r}
+ggplot(patients, aes(x = Insulin, fill = ..count..)) +
+  geom_histogram(binwidth = 10, color = "black") +
+  scale_fill_viridis_c() +
+  labs(title = "Insulin Histogram",
+       x = "Insulin",
+       y = "Count") +
+  theme_minimal()
+```
+
+We can say that Insulin is skewed left by looking at the graph.
+
+
+### BMI
+```{r}
+ggplot(patients, aes(x = BMI, fill = ..count..)) +
+  geom_histogram(binwidth = 2, color = "black") +
+  scale_fill_viridis_c() +
+  labs(title = "Histogram of BMI",
+       x = "BMI",
+       y = "Count") +
+  theme_minimal()
+```
+
+There is an observed concentration between 20-40
+
+
+### Diagnosis and Glucose
+```{r}
+ggplot(patients, aes(x = factor(Diagnosis), y = Glucose, fill = factor(Diagnosis))) +
+  geom_boxplot(color = "black") +
+  scale_fill_manual(values = c("0" = "#56B4E9", "1" = "#E69F00"),
+                    labels = c("No GDM", "GDM")) +
+  labs(
+    title = "Glucose Levels by Diagnosis",
+    x = "Gestational Diabetes Diagnosis",
+    y = "Glucose (mg/dL)",
+    fill = "Diagnosis"
+  ) +
+  theme_minimal()
+```
+Patients diagnosed with GDM have higher Glucose levels. 
+
+
+### Plot variables with each other
+
+### Blood pressure and glucose
+```{r}
+ggplot(Positive, aes(x = BloodPressure, y = Glucose)) +
+  geom_point(color = "blue") +
+  labs(title = "BloodPressure & Glucose",
+       x = "BloodPressure",
+       y = "Glucose") +
+  theme_minimal()
+```
+
+### Age and Glucose
+```{r}
+ggplot(patients, aes(x = Age, y = Glucose, color = as.factor(Diagnosis))) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     name = "Diagnosis",
+                     labels = c("Negative", "Positive")) +
+  labs(title = "Glucose vs Age Colored by Diagnosis",
+       x = "Age",
+       y = "Glucose") +
+  theme_minimal()
+```
+
+### BloodPressure and Age
+```{r}
+ggplot(patients, aes(x = Age, y = BloodPressure, color = as.factor(Diagnosis))) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     name = "Diagnosis",
+                     labels = c("Negative", "Positive")) +
+  labs(title = "BloodPressure vs Age Colored by Diagnosis",
+       x = "Age",
+       y = "BloodPressure") +
+  theme_minimal()
+```
+
+### SkinThickness and Age
+```{r}
+ggplot(patients, aes(x = Age, y = SkinThickness, color = as.factor(Diagnosis))) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     name = "Diagnosis",
+                     labels = c("Negative", "Positive")) +
+  labs(title = "SkinThickness vs Age Colored by Diagnosis",
+       x = "Age",
+       y = "SkinThickness") +
+  theme_minimal()
+```
+
+### Insulin and Age
+```{r}
+ggplot(patients, aes(x = Age, y = Insulin, color = as.factor(Diagnosis))) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     name = "Diagnosis",
+                     labels = c("Negative", "Positive")) +
+  labs(title = "Insulin vs Age Colored by Diagnosis",
+       x = "Age",
+       y = "Insulin") +
+  theme_minimal()
+```
+
+### BMI and Age
+```{r}
+ggplot(patients, aes(x = Age, y = BMI, color = as.factor(Diagnosis))) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                     name = "Diagnosis",
+                     labels = c("Negative", "Positive")) +
+  labs(title = "BMI vs Age Colored by Diagnosis",
+       x = "Age",
+       y = "BMI") +
+  theme_minimal()
+```
+
+### Checking correlation between features
+```{r}
+# Assuming your data frame is called 'patients'
+cor_matrix <- cor(patients[, sapply(patients, is.numeric)], use = "pairwise.complete.obs")
+print(cor_matrix)
+
+
+# Starting from patients data frame:
+patients_corr <- patients[, sapply(patients, is.numeric)]
+
+# Now calculate correlation matrix
+cor_mat <- cor(patients_corr, use = "pairwise.complete.obs")
+
+corrplot(cor_mat, method = "color", type = "upper", 
+         tl.col = "black", tl.srt = 45)
+
+```
+
+### let's add some values
+```{r}
+# Now use brewer.pal
+cols <- colorRampPalette(brewer.pal(9, "YlGnBu"))(100)
+
+# Then plot
+corrplot::corrplot(cor_matrix, method = "color", type = "upper",
+                   tl.cex = 0.8,
+                   addCoef.col = "black",
+                   col = cols)
+```
+
+
+
+# Data Cleaning
+
+Reading data
+```{r}
+library(readr)
+datap <- read_csv("C:/Users/katie/Documents/CIS-690/patients.csv")
+summary(datap)
+str(datap)
+```
+
+### Replace 0s with NA in selected columns (where 0 indicates missing)
+```{r}
+# Leaving pregnancies zeros and Diagnosis zeros as these are meaningful
+datap$Insulin[datap$Insulin == 0] <- NA
+datap$BMI[datap$BMI == 0] <- NA
+datap$SkinThickness[datap$SkinThickness == 0] <- NA
+datap$BloodPressure[datap$BloodPressure == 0] <- NA
+datap$Pedigree[datap$Pedigree == 0] <- NA
+datap$Glucose[datap$Glucose == 0] <- NA
+datap$Age[datap$Age == 0] <- NA
+```
+
+### Explore NA values
+```{r}
+#Count NAs
+sum(is.na(datap))
+#652 NAs total
+sum(apply(datap, 1, function(row) any(is.na(row))))
+#376 rows have a missing value
+sum(datap == 0, na.rm = TRUE)
+#611 zeros in total 
+```
+
+### Double checking that conversion was successful for each column
+```{r}
+sum(datap$Age == 0, na.rm = TRUE)
+#All Age zeros converted to NA
+sum(datap$SkinThickness == 0, na.rm = TRUE)
+#All SkinTckness zeros converted to NA
+sum(datap$Insulin == 0, na.rm = TRUE)
+#All Insulin zeros have been converted to NA
+sum(datap$BMI == 0, na.rm = TRUE)
+#All BMI zeros have been converted to NA
+sum(datap$Pedigree == 0, na.rm = TRUE)
+#All pedigree zeros have been converted to NA
+sum(datap$Glucose == 0, na.rm = TRUE)
+#All glucose zeros have been converted to NA
+sum(datap$BloodPressure == 0, na.rm = TRUE)
+#All blood pressure zeros have been converted to NA
+sum(datap$Diagnosis == 0, na.rm = TRUE)
+sum(datap$Diagnosis == 1, na.rm = TRUE)
+
+```
+
+Diagnosis and pregnancy zeros have been left as zeros (Binary- positive or negative diagnosis).
+
+268 postive diagnosis in the dataset
+500 negative diagnosis in the dataset
+
+### Checking Correlation
+```{r}
+#correlation matrix
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+install.packages("corrplot")
+library(corrplot)
+
+#Ignore NAs and visualize correlation between variables
+cor_matrix2 <- cor(datap[, 1:9], use = "complete.obs")
+print(cor_matrix2)
+
+corrplot(cor_matrix2, method = "circle")
+#Highly correlated features: 
+#Age & number of pregnancies- 0.68
+#Glucose & Insulin- 0.58
+#BMI & skin thickness- 0.66
+#Diagnosis & glucose- 0.515
+
+install.packages("car")
+library(car)
+
+#VIF
+model <- lm(Diagnosis ~ BMI + Age + Pregnancies + Pedigree + Glucose + BloodPressure, Insulin, SkinThickness, data = datap)
+
+vif(model)
+
+```
+There are some correlated values, but VIF scores are all below 3. 
+
+### Investigate missingness
+```{r}
+install.packages("naniar")
+library(naniar)
+# Show rows with any missing data
+datap[!complete.cases(datap), ]
+# Visualize missingness by variable
+gg_miss_var(datap)
+# Visualize missing data patterns
+vis_miss(datap)
+```
+
+### NA & Zeros Totals
+```{r}
+colSums(is.na(datap))
+colSums(datap == 0, na.rm = TRUE)
+#3 columns with <35 missing rows
+#111 rows where pregnancies == 0
+#500 rows where Diagnosis == 0
+```
+
+
+### Find rows where this count is 3 or more
+```{r}
+zero_or_na_per_row <- apply(datap, 1, function(row) {
+  sum(is.na(row))
+})
+
+(rows_3_or_more <- sum(zero_or_na_per_row >= 3))
+```
+We see that there are 35 rows where blood pressure, skin thickness, and insulin are missing together. We choose to remove these rows at less than 4% of the data. 
+
+### Remove rows with 3 or more NAs
+```{r}
+# Remove rows with 3 or more NAs
+df_clean <- datap[rowSums(is.na(datap)) < 3, ]
+```
+
+
+### Vizualize missingness together
+```{r}
+gg_miss_upset(datap)
+```
+
+SkinThickness and Insulin missing together 192 times. 
+Possible missingness explainations: more invasive testing, or these items are only done for certain clients or appointment types. This should be explored to see if data is MAR, MCAR, or MNAR.
+
+### Check if both missing is related to other variables
+1. T-tests between each variable and missingness
+2. Visualize to observe any differences
+
+
+### 1. 
+```{r}
+length(datap$Insulin)
+length(datap$SkinThickness)
+
+datap$insulin_skin_missing <- ifelse(is.na(datap$Insulin) & is.na(datap$SkinThickness), 1, 0)
+
+# Run t-test for BMI
+t_result <- t.test(BMI ~ insulin_skin_missing, data = datap)
+print(t_result)
+
+# Run t-test for Pregnancies
+t_result <- t.test(Pregnancies ~ insulin_skin_missing, data = datap)
+print(t_result)
+
+# Run t-test for Age
+t_result <- t.test(Age ~ insulin_skin_missing, data = datap)
+print(t_result)
+
+# Run t-test for Pedigree
+t_result <- t.test(Pedigree ~ insulin_skin_missing, data = datap)
+print(t_result)
+
+# Run t-test for Glucose
+t_result <- t.test(Glucose ~ insulin_skin_missing, data = datap)
+print(t_result)
+
+# Run t-test for BloodPressure
+t_result <- t.test(BloodPressure ~ insulin_skin_missing, data = datap)
+print(t_result)
+```
+
+### 2. 
+```{r}
+
+library(ggplot2)
+
+ggplot(datap, aes(x = factor(insulin_skin_missing), y = Age)) +
+  geom_boxplot(fill = c("#a6cee3", "#1f78b4")) +
+  labs(x = "Insulin & SkinThickness Missing (0 = No, 1 = Yes)", y = "Age",
+       title = "Age Distribution by Missingness of Insulin and SkinThickness") +
+  theme_minimal()
+
+ggplot(datap, aes(x = factor(insulin_skin_missing), y = Pregnancies)) +
+  geom_boxplot(fill = c("#fdbf6f", "#ff7f00")) +
+  labs(x = "Insulin & SkinThickness Missing (0 = No, 1 = Yes)", y = "Number of Pregnancies",
+       title = "Pregnancies Distribution by Missingness of Insulin and SkinThickness") +
+  theme_minimal()
+
+ggplot(datap, aes(x = factor(insulin_skin_missing), y = Pedigree)) +
+  geom_boxplot(fill = c("blue", "forestgreen")) +
+  labs(x = "Insulin & SkinThickness Missing (0 = No, 1 = Yes)", y = "Pedigree",
+       title = "Pedigree Distribution by Missingness of Insulin and SkinThickness") +
+  theme_minimal()
+```
+
+
+Analysis: There is a statistically significantly difference in several features means and missing or not missing the set of variables. We are suspecting that high missing rates of skin thickness and insulin are missing at random. Upon researching the domain, we suspect that older patients, or patients who have been pregnant a number of times before may often  skip these measurements. They are not routine, and are possibly opted for only when there are other predictive factors observed. This indicates the missingness is at random (MAR). Imputation methods should be carefully considered using this information. 
+
+
+### Are zeros in 'Pregnancies' errors? Or does this column ask about previous pregnancies, not including the current pregnancy?
+```{r}
+# Subset rows where Pregnancies == 0
+preg0_df <- subset(datap, Pregnancies == 0)
+
+# Count how many of those have Diagnosis == 1 (GDM)
+gdm_with_preg0 <- sum(preg0_df$Diagnosis == 1, na.rm = TRUE)
+
+# Total number of rows with Pregnancies == 0
+total_preg0 <- nrow(preg0_df)
+
+# Print results
+cat("Total rows with Pregnancies == 0:", total_preg0, "\n")
+cat("Rows with Pregnancies == 0 AND Diagnosis == 1 (GDM):", gdm_with_preg0, "\n")
+```
+There are 38 cases where pregnancy ==0 and diagnosis ==1. 
+We will assume 'Pregnancies' == 0 means prior pregnancies. 
+
+
+
+### Check for duplicates
+```{r}
+any(duplicated(df_clean))
+```
+
+### Recheck NA's
+```{r}
+colSums(is.na(df_clean))
+```
+
+
+### Identify and remove columns with fewer than 6 NAs
+```{r}
+cols_to_clean <- names(which(colSums(is.na(df_clean)) < 6))
+cols_to_clean
+
+# Keep rows with no NA in those selected columns
+df_clean <- df_clean[complete.cases(df_clean[, cols_to_clean]), ]
+```
+
+### Recheck
+```{r}
+colSums(is.na(df_clean))
+```
+The only columns with NAs remaining are SkinThickness and Insulin
+
+### Reviewing rows remaining and remaining missingness
+```{r}
+#Total number of rows
+(total_rows <- nrow(df_clean))
+#729 rows remaining after basic cleaning
+# Percentage of missing SkinThickness
+skin_missing_pct <- sum(is.na(df_clean$SkinThickness)) / total_rows * 100
+# Percentage of missing Insulin
+insulin_missing_pct <- sum(is.na(df_clean$Insulin)) / total_rows * 100
+# Display the results
+cat("Percentage of missing SkinThickness values:", round(skin_missing_pct, 2), "%\n")
+cat("Percentage of missing Insulin values:", round(insulin_missing_pct, 2), "%\n")
+```
+27% of Skin thickness values are missing.
+46% of Insulin values are missing. 
+
+### Checking for outliers
+```{r}
+vars_to_plot <- c("Insulin", "BMI", "SkinThickness", "BloodPressure", "Pedigree", "Glucose", "Age")
+
+par(mfrow = c(4, 2), mar = c(4, 4, 2, 1))
+
+for (var_name in vars_to_plot) {
+  boxplot(df_clean[[var_name]], 
+          main = paste(var_name, "Boxplot"),
+          horizontal = TRUE, 
+          col = "lightblue",
+          na.action = na.omit)
+}
+```
+
+### Count and examine problematic values
+```{r}
+# BloodPressure issues (0 or < 40)
+bp_issues <- df_clean[ df_clean$BloodPressure < 40, ]
+cat("BloodPressure < 40:", sum(df_clean$BloodPressure < 40, na.rm = TRUE), "\n")
+cat("Total BloodPressure issues:", nrow(bp_issues), "\n\n")
+```
+To remove 4 instances of blood pressure errors
+
+```{r}
+# SkinThickness issues (0 values)
+skin_issues <- df_clean[df_clean$SkinThickness < 5 | df_clean$SkinThickness > 60, ]
+cat("SkinThickness < 5:", sum(df_clean$SkinThickness < 5, na.rm = TRUE), "\n")
+cat("SkinThickness > 60:", sum(df_clean$SkinThickness > 60, na.rm = TRUE), "\n")
+```
+To remove 2 Instances of skin thickness errors
+
+```{r}
+# Glucose issues (< 50)
+glucose_issues <- df_clean[df_clean$Glucose < 50, ]
+cat("Glucose < 50:", nrow(glucose_issues), "\n\n")
+```
+To remove 6 instances of glucose errors
+
+```{r}
+#Age
+print(which(df_clean$Age > 50))
+print(which(df_clean$Age < 11))
+#Inspect rows
+print(as.data.frame(df_clean[c(8,  11,  12,  13,  21,  25,  27,  36,  40,  49,  61,  84, 106, 114, 119, 130, 137, 173,
+                   190, 192, 193, 198, 207, 208, 221, 244, 247, 256, 260, 266, 267, 276, 281, 300, 322, 336,
+                   337, 338, 349, 362, 375, 426, 428, 429, 444, 448, 455, 457, 462, 465, 475, 478, 482, 483,
+                   485, 500, 505, 509, 515, 520, 523, 544, 546, 550, 561, 613, 615, 621, 629, 631, 655, 668,
+                   670, 685, 708, 710, 714), ]))
+                   
+# Specify the row indices to remove
+rows_to_remove <- c(8, 11, 12, 13, 21, 25, 27, 36, 40, 49, 61, 84, 106, 114, 119, 130, 137, 173,
+                    190, 192, 193, 198, 207, 208, 221, 244, 247, 256, 260, 266, 267, 276, 281, 300,
+                    322, 336, 337, 338, 349, 362, 375, 426, 428, 429, 444, 448, 455, 457, 462, 465,
+                    475, 478, 482, 483, 485, 500, 505, 509, 515, 520, 523, 544, 546, 550, 561, 613,
+                    615, 621, 629, 631, 655, 668, 670, 685, 708, 710, 714)
+
+# Create new cleaned dataset by removing those rows
+#df_clean_2 <- df_clean[-rows_to_remove, ]
+
+print(df_clean[c(419, 545, 16,  58, 118, 562, 564), ])
+#row 419 looks normal comparing to bmi- keep
+
+# Remove rows 545, 16, 58, 118, 562, 564
+#rows_to_remove <- c(545, 16, 58, 118, 562, 564)
+
+# Create new dataframe without these rows
+#df_clean_2 <- df_clean_2[-rows_to_remove, ]
+
+```
+
+
+### Concise removal of non-realistic values
+```{r}
+library(dplyr)
+df_clean_2 <- df_clean %>%
+  filter(BloodPressure >= 40) %>%
+  filter(SkinThickness >= 5 & SkinThickness <= 60) %>%
+  filter(Glucose >= 50) %>%
+  filter(Age >= 11 & Age <= 50)
+```
+
+```{r}
+library(dplyr)
+df_clean_2 <- df_clean %>%
+  dplyr::filter(Age >= 11 & Age <= 50,
+                Glucose >= 50,
+                SkinThickness >= 5 & SkinThickness <= 60,
+                BloodPressure >= 40)
+```
+
+
+### Check
+```{r}
+summary(df_clean_2)
+str(df_clean_2)
+```
+
+
+# Imputation
+
+### Create two different sets of data: One with Insulin and SkinThickness imputed with RF, and the other imputed with MICE
+
+### Mice Imputation
+```{r, error=TRUE}
+install.packages("mice")
+library(mice)
+data_to_be_imputed = df_clean_2
+imputed_data <- mice(data_to_be_imputed, method = "pmm", m = 5, seed = 123)
+imputed_df <- complete(imputed_data)  # gets the first completed dataset
+
+# Check NAs
+colSums(is.na(imputed_df))
+summary(imputed_df)
+head(imputed_df)
+
+#Final imputed dataset
+rf_dataset_imputed <- imputed_df
+
+write.csv(rf_dataset_imputed, "completed_data_mice.csv", row.names = FALSE)
+```
+
+
+### RF Imputation
+```{r, error=TRUE}
+install.packages("missForest")
+library(missForest)
+
+set.seed(123)  # For reproducibility
+
+# Save outcome variable (Diagnosis) separately
+outcome_var <- data_to_be_imputed$Diagnosis
+
+# Remove outcome before imputation
+df_features_only <- data_to_be_imputed[, !(names(data_to_be_imputed) %in% "Diagnosis")]
+
+# Check Insulin and SkinThickness presence before imputation
+stopifnot("Insulin" %in% colnames(df_features_only))
+stopifnot("SkinThickness" %in% colnames(df_features_only))
+
+# Perform RF imputation on features only
+rf_imputed <- missForest(df_features_only, maxiter = 10, ntree = 100)
+
+# Extract completed data
+rf_dataset_imputed <- rf_imputed$ximp
+
+# Add outcome variable back
+rf_dataset_imputed$Diagnosis <- outcome_var
+
+# Check imputation results
+colSums(is.na(rf_dataset_imputed))
+summary(rf_dataset_imputed)
+head(rf_dataset_imputed)
+
+write.csv(rf_dataset_imputed, "completed_data_rf.csv", row.names = FALSE)
+```
+
+
+### Imputed Datasets- Github
+```{r}
+completed_data_mice <- read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/refs/heads/main/completed_data_mice.csv")
+
+completed_data_rf <-
+read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/refs/heads/main/completed_data_rf.csv")
+```
+
+
+
+# Pre-Processing
+
+# Scaled dataset
+
+SVM can benefit from feature transformation of highly skewed features. A data set will be created using log transformation on several of the features. 
+
+### Normality Test
+```{r}
+rfid <- completed_data_rf
+mid <- completed_data_mice
+
+shapiro.test(rfid$Pedigree)
+#not normal
+shapiro.test(rfid$Age)
+#not normal
+shapiro.test(rfid$Insulin)
+#not normal
+shapiro.test(rfid$Glucose)
+#not normal
+shapiro.test(rfid$BMI)
+#not normal
+shapiro.test(rfid$BloodPressure)
+#not normal
+shapiro.test(rfid$SkinThickness)
+#not normal
+shapiro.test(rfid$Pregnancies)
+#not normal
+
+
+install.packages("e1071")
+
+# Load
+library(e1071)
+
+# Check skewness for each numeric column
+sapply(rfid, skewness, na.rm = TRUE)
+
+#RF dataset transformations
+rfid_log_transformed <- rfid %>%
+  mutate(
+    log_Insulin = log(Insulin + 1),        
+    log_Pedigree = log(Pedigree + 1)
+  )
+
+#MICE dataset transformations
+mid_log_transformed <- mid %>%
+  mutate(
+    log_Insulin = log(Insulin + 1),        
+    log_Pedigree = log(Pedigree + 1)
+  )
+```
+
+Log transformations were applied on the two features with highest skewness, Pedigree and Insulin. 
+
+
+
+# Feature Selection
+
+Models to be run based on the literature review are XGBoost, Logistic regression, Random Forest, and SVM. XGBoost and Random Forest handle feature selection internally. Logistic regression and SVM can benefit from feature selection. SVM feature selection will be handled here using Recursive Feature Elimination (RFE). This will be performed using both styles of imputation to compare performance between them. 
+
+```{r}
+# Read dataset
+## ALL FOUR
+library(caret)
+set.seed(123)
+
+data1 <- rfid_log_transformed
+data2 <- mid_log_transformed
+
+
+#Predictors for each dataset
+x_rf <- data1[, c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness",
+                 "BMI", "Age", "log_Pedigree", "log_Insulin")]
+y_rf <- factor(data1$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+
+x_mice <- data2[, c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness",
+                    "BMI", "Age", "log_Pedigree", "log_Insulin")]
+y_mice <- factor(data2$Diagnosis, levels = c(0, 1), labels = c("No", "Yes"))
+
+#CV
+train_ctrl <- trainControl(
+  method = "cv",
+  number = 3,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary,
+  sampling = "smote"
+)
+
+rfe_ctrl <- rfeControl(functions = caretFuncs, method = "cv", number = 3)
+
+
+#RFE SVM
+rfe_svm_rf <- rfe(
+  x = x_rf, y = y_rf,
+  sizes = 1:8,
+  rfeControl = rfe_ctrl,
+  method = "svmRadial",
+  metric = "ROC",
+  trControl = train_ctrl
+)
+
+rfe_svm_mice <- rfe(
+  x = x_mice, y = y_mice,
+  sizes = 1:8,
+  rfeControl = rfe_ctrl,
+  method = "svmRadial",
+  metric = "ROC",
+  trControl = train_ctrl
+)
+
+# Create data frames of results for plotting
+get_perf_df <- function(rfe_obj, model_name) {
+  data.frame(
+    Variables = rfe_obj$results$Variables,
+    Accuracy = rfe_obj$results$Accuracy,
+    Model = model_name
+  )
+}
+
+results_combined <- rbind(
+  get_perf_df(rfe_svm_rf, "SVM (RF Imputed)"),
+  get_perf_df(rfe_svm_mice, "SVM (MICE Imputed)")
+)
+
+# Plot accuracy vs. number of features
+ggplot(results_combined, aes(x = Variables, y = Accuracy, color = Model)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  theme_minimal() +
+  labs(title = "RFE Accuracy Comparison",
+       x = "Number of Selected Features",
+       y = "ROC") +
+  scale_color_brewer(palette = "Set1")
+
+plot(rfe_svm_rf, type = c("g", "o"))
+plot(rfe_svm_mice, type = c("g", "o"))
+rfe_svm_rf$optVariables
+rfe_svm_mice$optVariables
+```
+
+Rf returned as the highest performing dataset, with six features included. For our SVM model, we will run this subset of features with the random forest and compare with the full set of features. 
+
+### Create a dataset with this subset of features & log transformation.
+```{r}
+#include only recommended features determined in feature selection:
+rf_log_transf_feature_subset <- rfe_svm_rf[c("Glucose", "log_Insulin", "Age", "BMI", "SkinThickness", "Pregnancies", "Diagnosis")]
+
+colnames(rf_log_transf_feature_subset)
+#write.csv(rf_log_transf_feature_subset, "completed_data_rf_log_transformed_feature_subset.csv", row.names = FALSE)
+```
+
+### Dataset for SVM - Github
+```{r}
+completed_data_rf_log_transformed_feature_subset_for_SVM <- read.csv("https://raw.githubusercontent.com/arnenyeck06/Statistical-Inference-Package/refs/heads/main/completed_data_rf_log_transformed_feature_subset_for_SVM.csv")
+```
+
+
+
