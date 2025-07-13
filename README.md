@@ -24,3 +24,5 @@
 
   We will build a binary classification model to predict the risk of gestational diabetes using this dataset. We will proceed following these steps: Literature Review on Gestational Diabetes Prediction,
 Data Exploration and Preparation, Feature Selection and Data Processing, Model Building and Validation, Analysis, Limitations, and Reporting.
+
+# I - Data Exploration and Preprocessing.
