@@ -1,6 +1,6 @@
 # Statistical-Inference-Package
 
-  The goal of this project is to develop a predictive model to identify pregnant women who are at greater risk of developing gestational diabetes. This model will help your hospital provide timely clinical interventions, improve patient outcomes, and reduce the cost of care associated with complications from gestational diabetes.
+  The goal of this project is to develop a predictive model to identify pregnant women who are at greater risk of developing gestational diabetes. This model will enable your hospital to provide timely clinical interventions, enhance patient outcomes, and reduce the cost of care associated with complications from gestational diabetes.
 
   We are provided with a dataset (patients.csv) containing information on women aged 21 years and older, including several health and demographic variables collected during pregnancy. The dataset includes the following variables:
 • Pregnancies: Number of times pregnant
@@ -26,3 +26,6 @@
 Data Exploration and Preparation, Feature Selection and Data Processing, Model Building and Validation, Analysis, Limitations, and Reporting.
 
 # I - Data Exploration and Preprocessing.
+# II - Logistic Regression
+# III - Random Forest
+# IV - XGboost
