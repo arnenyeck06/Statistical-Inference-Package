@@ -26,6 +26,10 @@
 Data Exploration and Preparation, Feature Selection and Data Processing, Model Building and Validation, Analysis, Limitations, and Reporting.
 
 # I - Data Exploration and Preprocessing.
-# II - Logistic Regression
+# II- Random Forest
+# III- Logistic Regression
+# IV- SVM
+# V- XGboost
+# 
 # III - Random Forest
 # IV - XGboost
