@@ -30,6 +30,3 @@ Data Exploration and Preparation, Feature Selection and Data Processing, Model B
 # III- Logistic Regression
 # IV- SVM
 # V- XGboost
-# 
-# III - Random Forest
-# IV - XGboost
