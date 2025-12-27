@@ -165,4 +165,4 @@ Deployment as a clinical decision-support tool
 👤 Author
 
 Arne Nyeck
-Data Analyst / Aspiring Data Engineer
+Data Analyst / Data Engineer
