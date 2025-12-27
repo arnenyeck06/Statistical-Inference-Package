@@ -34,7 +34,7 @@ The system demonstrates how raw healthcare data can be transformed into clean, v
 
 The dataset (patients.csv) contains clinical and demographic information for women aged 21 years and older.
 
-##Features
+## FEATURES:
 
 **Pregnancies** – Number of times pregnant
 
