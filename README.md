@@ -123,3 +123,46 @@ Recommendations for real-world use
 | Support Vector Machine | `SVM.Rmd`                 |
 | XGBoost                | `XGBoost.Rmd`             |
 ---
+
+## 🛠️ Tools & Technologies
+
+R / RMarkdown
+
+tidyverse
+
+caret
+
+randomForest
+
+e1071 (SVM)
+
+xgboost
+
+mice (missing data imputation)
+
+---
+## 📊 Key Takeaways
+
+Tree-based models (Random Forest, XGBoost) demonstrated strong performance on non-linear relationships
+
+Logistic Regression provided interpretability for clinical insight
+
+Feature preprocessing significantly impacted SVM performance
+
+---
+## 🚀 Future Improvements
+
+External dataset validation
+
+Hyperparameter optimization
+
+Model explainability (SHAP / feature importance)
+
+Deployment as a clinical decision-support tool
+
+---
+
+👤 Author
+
+Arne Nyeck
+Data Analyst / Aspiring Data Engineer
