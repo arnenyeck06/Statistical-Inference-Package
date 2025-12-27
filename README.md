@@ -42,7 +42,7 @@ The dataset (patients.csv) contains clinical and demographic information for wom
 
 **BloodPressure** – Diastolic blood pressure (mm Hg)
 
-**SkinThickness **– Triceps skin fold thickness (mm)
+**SkinThickness** – Triceps skin fold thickness (mm)
 
 **Insulin** – 2-hour serum insulin (μU/ml)
 
