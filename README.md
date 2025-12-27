@@ -59,3 +59,58 @@ The dataset (patients.csv) contains clinical and demographic information for wom
 1 = Yes
 
 0 = No
+
+---
+## Project Workflow
+
+The analysis follows a structured data science lifecycle:
+
+Literature Review
+
+Review of existing gestational diabetes prediction approaches
+
+Data Exploration & Preprocessing
+
+Exploratory Data Analysis (EDA)
+
+Missing value handling (MICE imputation)
+
+Feature transformations and normalization
+
+Feature Selection & Engineering
+
+Log transformations
+
+Subset selection for model compatibility
+
+Model Development
+
+Logistic Regression
+
+Random Forest
+
+Support Vector Machine (SVM)
+
+XGBoost
+
+Model Evaluation & Validation
+
+Accuracy, sensitivity, specificity
+
+Model comparison and interpretation
+
+Analysis & Limitations
+
+Clinical relevance
+
+Statistical assumptions
+
+Data and model limitations
+
+Reporting & Interpretation
+
+Model insights
+
+Recommendations for real-world use
+
+---
