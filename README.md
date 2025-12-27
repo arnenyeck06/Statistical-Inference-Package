@@ -114,6 +114,7 @@ Model insights
 Recommendations for real-world use
 
 ---
+## Models Implemented
 
 | Model                  | File                      |
 | ---------------------- | ------------------------- |
