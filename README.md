@@ -114,3 +114,11 @@ Model insights
 Recommendations for real-world use
 
 ---
+
+| Model                  | File                      |
+| ---------------------- | ------------------------- |
+| Logistic Regression    | `Logistic_Regression.Rmd` |
+| Random Forest          | `Random_Forest.Rmd`       |
+| Support Vector Machine | `SVM.Rmd`                 |
+| XGBoost                | `XGBoost.Rmd`             |
+---
